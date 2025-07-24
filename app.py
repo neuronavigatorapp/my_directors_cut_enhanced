@@ -144,3 +144,219 @@ else:
             render_movie_card(movie)
     else:
         render_poster_grid(filtered_movies)
+
+# --- THEME TOGGLE ---
+theme_choice = st.sidebar.radio("Theme", ["Modern", "Classic"])
+
+# --- STYLE INJECTION ---
+if theme_choice == "Modern":
+    st.markdown("""
+    <style>
+    html, body, .stApp {
+        background-color: #111;
+        color: #f2f2f2;
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 18px;
+    }
+    h1, h2, h3 {
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .movie-poster {
+        border-radius: 6px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    }
+    .tag-chip {
+        display: inline-block;
+        background-color: #333;
+        color: #eee;
+        padding: 4px 12px;
+        margin: 4px 6px 4px 0;
+        border-radius: 16px;
+        font-size: 15px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+elif theme_choice == "Classic":
+    st.markdown("""
+    <style>
+    html, body, .stApp {
+        background-color: #0a0a0a;
+        color: #eaeaea;
+        font-family: 'Georgia', serif;
+        font-size: 18px;
+    }
+    h1, h2, h3 {
+        font-weight: 500;
+        font-style: italic;
+        text-transform: none;
+        letter-spacing: 0.5px;
+    }
+    .movie-poster {
+        border: 1px solid #444;
+        box-shadow: none;
+        border-radius: 0;
+    }
+    .tag-chip {
+        display: inline-block;
+        background-color: #222;
+        color: #ccc;
+        padding: 4px 10px;
+        margin: 4px 6px 4px 0;
+        border-radius: 12px;
+        font-size: 14px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- FONT SIZE UPDATE ---
+# Applied in both themes for accessibility
+if theme_choice == "Modern":
+    st.markdown("""
+    <style>
+    html, body, .stApp {
+        font-size: 22px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+elif theme_choice == "Classic":
+    st.markdown("""
+    <style>
+    html, body, .stApp {
+        font-size: 22px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Updated render_movie_card() with poster styling class
+def render_movie_card(movie):
+    title = movie["title"]
+    data = st.session_state.user_data.get(title, {})
+    note = data.get("note", "")
+    tags = data.get("tags", [])
+    last_watched = data.get("last_watched", "")
+
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        if movie["poster_path"]:
+            st.markdown(
+                f"<img src='{movie['poster_path']}' width='240' class='movie-poster'>",
+                unsafe_allow_html=True
+            )
+
+    with col2:
+        st.subheader(title)
+        st.caption(f"{movie['release_date']} | {', '.join(movie['genres'])}")
+        st.write(movie["overview"] or "_No summary available._")
+        new_note = st.text_input("Your Note", value=note, key=f"note_{title}")
+        if new_note != note:
+            data["note"] = new_note
+        if st.checkbox("Favorite", value="Favorite" in tags, key=f"fav_{title}"):
+            if "Favorite" not in tags: tags.append("Favorite")
+        else:
+            if "Favorite" in tags: tags.remove("Favorite")
+        if st.checkbox("Watch Later", value="Watch Later" in tags, key=f"wl_{title}"):
+            if "Watch Later" not in tags: tags.append("Watch Later")
+        else:
+            if "Watch Later" in tags: tags.remove("Watch Later")
+        if st.button("Watch on Fandango", key=f"watch_{title}"):
+            data["last_watched"] = datetime.now().isoformat()
+        if last_watched:
+            st.markdown(f"<small>Last watched: {last_watched.split('T')[0]}</small>", unsafe_allow_html=True)
+
+        data["tags"] = tags
+        st.session_state.user_data[title] = data
+        save_user_data(st.session_state.user_data)
+    st.markdown("---")
+
+# --- PATCH CLASSIC THEME: gold accent, marquee headers, button hover effects ---
+if theme_choice == "Classic":
+    st.markdown("""
+    <style>
+    html, body, .stApp {
+        background-color: #0a0a0a;
+        color: #eaeaea;
+        font-family: 'Georgia', serif;
+        font-size: 22px;
+    }
+    h1, h2, h3 {
+        font-weight: 500;
+        font-style: italic;
+        letter-spacing: 0.5px;
+        border-left: 6px solid #d4af37;
+        padding-left: 12px;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+    }
+    .movie-poster {
+        border: 1px solid #555;
+        box-shadow: 0 0 0 1px #333;
+        border-radius: 4px;
+    }
+    .tag-chip {
+        display: inline-block;
+        background-color: #1a1a1a;
+        color: #d4af37;
+        border: 1px solid #d4af37;
+        padding: 4px 10px;
+        margin: 4px 6px 4px 0;
+        border-radius: 12px;
+        font-size: 14px;
+    }
+    button[kind="secondary"] {
+        color: #d4af37 !important;
+        border: 1px solid #d4af37 !important;
+        background-color: transparent !important;
+    }
+    button[kind="secondary"]:hover {
+        background-color: #333 !important;
+        border-color: #e2c770 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- PATCH MODERN THEME: neon accent, bold UI, improved poster/card visual ---
+if theme_choice == "Modern":
+    st.markdown("""
+    <style>
+    html, body, .stApp {
+        background-color: #111;
+        color: #f2f2f2;
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 22px;
+    }
+    h1, h2, h3 {
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 2px solid #08f;
+        padding-bottom: 8px;
+    }
+    .movie-poster {
+        border-radius: 12px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    }
+    .tag-chip {
+        display: inline-block;
+        background-color: #222;
+        color: #08f;
+        padding: 4px 12px;
+        margin: 4px 6px 4px 0;
+        border-radius: 16px;
+        font-size: 15px;
+    }
+    button[kind="secondary"] {
+        color: #08f !important;
+        border: 1px solid #08f !important;
+        background-color: transparent !important;
+        border-radius: 6px !important;
+    }
+    button[kind="secondary"]:hover {
+        background-color: #08f !important;
+        color: black !important;
+        font-weight: bold !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
