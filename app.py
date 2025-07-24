@@ -1,3 +1,5 @@
+# Save a clean, revised version of app.py with fallback display, logging, and fixed layout
+updated_app_code = '''\
 # app.py
 import streamlit as st
 import pandas as pd
@@ -24,30 +26,27 @@ def save_user_data(data):
     with open(USER_DATA_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
-# Load movie data
+# Load movie titles
 def load_movie_titles():
     if os.path.exists(MOVIE_DATA_FILE):
         df = pd.read_csv(MOVIE_DATA_FILE)
-        return df["title"].tolist()
+        return df["title"].dropna().tolist()
     return []
 
-# Save uploaded movie CSV
+# Save uploaded CSV
 def save_uploaded_csv(upload):
     df = pd.read_csv(upload)
     df.to_csv(MOVIE_DATA_FILE, index=False)
 
-# Setup session state
+# Setup state
 if "user_data" not in st.session_state:
     st.session_state.user_data = load_user_data()
 
-# --- SIDEBAR: Controls ---
 st.sidebar.title("View Options")
-
-# File uploader
 uploaded_file = st.sidebar.file_uploader("Upload Movie CSV", type=["csv"])
-if uploaded_file is not None:
+if uploaded_file:
     save_uploaded_csv(uploaded_file)
-    st.success("Movie list updated. Reload the app to see changes.")
+    st.success("Movie list updated. Please rerun the app.")
 
 view_mode = st.sidebar.radio("Display Mode", ["Full View", "Poster Grid"])
 filter_decade = st.sidebar.selectbox("Filter by Decade", ["All", "1980s", "1990s", "2000s", "2010s", "2020s"])
@@ -55,45 +54,37 @@ filter_runtime = st.sidebar.selectbox("Filter by Runtime", ["All", "Short (<90 m
 show_recent = st.sidebar.checkbox("Show Recently Added Only")
 playlist_trigger = st.sidebar.button("Surprise Me (3 picks)")
 
-# --- Load and Fetch Movies ---
+# Load and fetch
 movie_titles = load_movie_titles()
+st.write("Loaded titles:", movie_titles)
 movie_data = []
-
 for title in movie_titles:
     movie = fetch_movie_data(title)
     if movie:
         movie_data.append(movie)
+st.write("Movies fetched:", len(movie_data))
+if not movie_data:
+    st.error("⚠️ No movie data was fetched. Please check your TMDb API key or movie titles.")
 
-# Save all movie metadata for filtering/sorting
 st.session_state.movies = movie_data
 
-# --- Utility Functions ---
-
+# Utils
 def get_decade_label(year):
     try:
-        year = int(year)
-        return f"{year // 10 * 10}s"
+        return f"{int(year) // 10 * 10}s"
     except:
         return "Unknown"
 
 def get_runtime_category(runtime):
-    if runtime is None:
-        return "Unknown"
-    if runtime < 90:
-        return "Short (<90 min)"
-    elif 90 <= runtime <= 120:
-        return "Medium (90–120)"
-    else:
-        return "Long (>120)"
-
-# --- Movie Card Renderers ---
+    if runtime is None: return "Unknown"
+    return "Short (<90 min)" if runtime < 90 else "Medium (90–120)" if runtime <= 120 else "Long (>120)"
 
 def render_movie_card(movie):
     title = movie["title"]
-    user_data = st.session_state.user_data.get(title, {})
-    note = user_data.get("note", "")
-    tags = user_data.get("tags", [])
-    last_watched = user_data.get("last_watched", "")
+    data = st.session_state.user_data.get(title, {})
+    note = data.get("note", "")
+    tags = data.get("tags", [])
+    last_watched = data.get("last_watched", "")
 
     col1, col2 = st.columns([1, 3])
     with col1:
@@ -104,41 +95,25 @@ def render_movie_card(movie):
         st.subheader(title)
         st.caption(f"{movie['release_date']} | {', '.join(movie['genres'])}")
         st.write(movie["overview"] or "_No summary available._")
-
         new_note = st.text_input("Your Note", value=note, key=f"note_{title}")
         if new_note != note:
-            user_data["note"] = new_note
-            st.session_state.user_data[title] = user_data
-            save_user_data(st.session_state.user_data)
-
-        fav_key = f"{title}_fav"
-        is_fav = "Favorite" in tags
-        new_fav = st.checkbox("Favorite", value=is_fav, key=fav_key)
-        if new_fav and "Favorite" not in tags:
-            tags.append("Favorite")
-        elif not new_fav and "Favorite" in tags:
-            tags.remove("Favorite")
-
-        watch_later_key = f"{title}_watch_later"
-        is_watch_later = "Watch Later" in tags
-        new_watch_later = st.checkbox("Watch Later", value=is_watch_later, key=watch_later_key)
-        if new_watch_later and "Watch Later" not in tags:
-            tags.append("Watch Later")
-        elif not new_watch_later and "Watch Later" in tags:
-            tags.remove("Watch Later")
-
+            data["note"] = new_note
+        if st.checkbox("Favorite", value="Favorite" in tags, key=f"fav_{title}"):
+            if "Favorite" not in tags: tags.append("Favorite")
+        else:
+            if "Favorite" in tags: tags.remove("Favorite")
+        if st.checkbox("Watch Later", value="Watch Later" in tags, key=f"wl_{title}"):
+            if "Watch Later" not in tags: tags.append("Watch Later")
+        else:
+            if "Watch Later" in tags: tags.remove("Watch Later")
         if st.button("Watch on Fandango", key=f"watch_{title}"):
-            user_data["last_watched"] = datetime.now().isoformat()
-            st.session_state.user_data[title] = user_data
-            save_user_data(st.session_state.user_data)
-
-        user_data["tags"] = tags
-        st.session_state.user_data[title] = user_data
-        save_user_data(st.session_state.user_data)
-
+            data["last_watched"] = datetime.now().isoformat()
         if last_watched:
             st.markdown(f"<small>Last watched: {last_watched.split('T')[0]}</small>", unsafe_allow_html=True)
 
+        data["tags"] = tags
+        st.session_state.user_data[title] = data
+        save_user_data(st.session_state.user_data)
     st.markdown("---")
 
 def render_poster_grid(movies):
@@ -148,37 +123,32 @@ def render_poster_grid(movies):
             st.image(movie["poster_path"], use_column_width=True)
             st.caption(movie["title"])
 
-# --- Apply Filters and Render ---
-
+# Apply filters
 filtered_movies = []
-for movie in st.session_state.movies:
-    # Filter by decade
-    if filter_decade != "All":
-        movie_decade = get_decade_label(movie["release_date"])
-        if movie_decade != filter_decade:
-            continue
-
-    # Filter by runtime
-    runtime_cat = get_runtime_category(movie.get("runtime", None))
-    if filter_runtime != "All" and runtime_cat != filter_runtime:
+for m in st.session_state.movies:
+    if filter_decade != "All" and get_decade_label(m["release_date"]) != filter_decade:
         continue
+    if filter_runtime != "All" and get_runtime_category(m.get("runtime")) != filter_runtime:
+        continue
+    filtered_movies.append(m)
 
-    filtered_movies.append(movie)
-
-# Recently added = last 5 titles in order
 if show_recent:
     filtered_movies = filtered_movies[-5:]
 
-# Playlist shuffle = pick 3 random movies
 if playlist_trigger:
     st.subheader("🎞️ Your Movie Night Picks:")
-    playlist = random.sample(filtered_movies, min(3, len(filtered_movies)))
-    for movie in playlist:
+    picks = random.sample(filtered_movies, min(3, len(filtered_movies)))
+    for movie in picks:
         render_movie_card(movie)
 else:
-    # Main display logic
     if view_mode == "Full View":
         for movie in filtered_movies:
             render_movie_card(movie)
-    elif view_mode == "Poster Grid":
+    else:
         render_poster_grid(filtered_movies)
+'''
+
+# Write the updated app.py file
+with open("/mnt/data/app.py", "w") as f:
+    f.write(updated_app_code)
+
