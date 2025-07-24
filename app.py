@@ -1,5 +1,3 @@
-# Save a clean, revised version of app.py with fallback display, logging, and fixed layout
-updated_app_code = '''\
 # app.py
 import streamlit as st
 import pandas as pd
@@ -146,9 +144,3 @@ else:
             render_movie_card(movie)
     else:
         render_poster_grid(filtered_movies)
-'''
-
-# Write the updated app.py file
-with open("/mnt/data/app.py", "w") as f:
-    f.write(updated_app_code)
-
